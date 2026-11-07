@@ -1,5 +1,5 @@
 # Sistema de Gestion de Solicitudes Academicas
-# R3: Introduce Parameter Object (NuevaSolicitud, FiltroBusqueda)
+# R4: Replace Error Code with Exception + Replace Conditional with Table (OCP)
 import sys
 import json
 import os
@@ -12,18 +12,26 @@ ESTADO_EN_PROCESO = "En proceso"
 ESTADO_RESUELTA = "Resuelta"
 ESTADO_RECHAZADA = "Rechazada"
 ESTADOS = [ESTADO_PENDIENTE, ESTADO_EN_PROCESO, ESTADO_RESUELTA, ESTADO_RECHAZADA]
-ESTADOS_CERRADOS = (ESTADO_RESUELTA, ESTADO_RECHAZADA)
 TIPOS = ["constancia", "equivalencia", "reclamo", "otro"]
 PRIORIDADES = ["alta", "media", "baja"]
 RESPONSABLES = ["Alumnado", "Bedelia", "Tecnica"]
+
+# Tabla de transiciones: agregar un estado = agregar una fila (Abierto/Cerrado).
+TRANSICIONES = {
+    ESTADO_PENDIENTE: (ESTADO_EN_PROCESO, ESTADO_RECHAZADA),
+    ESTADO_EN_PROCESO: (ESTADO_RESUELTA, ESTADO_RECHAZADA),
+}
 
 datos = {"solicitudes": [], "estudiantes": {}, "ultimo_id": 0}
 RUTA_DATOS = os.environ.get("SOLICITUDES_DB", "data/solicitudes.json")
 
 
+class ErrorDeNegocio(Exception):
+    """Regla de negocio incumplida. El mensaje es el que ve el usuario."""
+
+
 @dataclass(frozen=True)
 class NuevaSolicitud:
-    """Agrupa los datos de alta que antes viajaban como 6 parametros sueltos."""
     dni: str
     nombre: str
     email: str
@@ -66,34 +74,29 @@ def fecha_de_hoy():
 
 
 def esta_cerrada(solicitud):
-    return solicitud["estado"] in ESTADOS_CERRADOS
+    return solicitud["estado"] not in TRANSICIONES
 
 
 def obtener_solicitud(id_solicitud):
     for solicitud in datos["solicitudes"]:
         if solicitud["id"] == id_solicitud:
             return solicitud
-    return None
+    raise ErrorDeNegocio("no existe la solicitud " + str(id_solicitud))
 
 
 def validar_nueva_solicitud(nueva):
-    """Devuelve el mensaje de error o None si los datos son validos."""
     if nueva.dni == "" or nueva.nombre == "" or nueva.descripcion == "":
-        return "datos incompletos"
+        raise ErrorDeNegocio("datos incompletos")
     if nueva.tipo not in TIPOS:
-        return "tipo invalido"
+        raise ErrorDeNegocio("tipo invalido")
     if nueva.prioridad not in PRIORIDADES:
-        return "prioridad invalida"
+        raise ErrorDeNegocio("prioridad invalida")
     if "@" not in nueva.email:
-        return "email invalido"
-    return None
+        raise ErrorDeNegocio("email invalido")
 
 
 def registrar_solicitud(nueva, fecha=None):
-    error = validar_nueva_solicitud(nueva)
-    if error is not None:
-        print("ERROR: " + error)
-        return -1
+    validar_nueva_solicitud(nueva)
     if nueva.dni not in datos["estudiantes"]:
         datos["estudiantes"][nueva.dni] = {"nombre": nueva.nombre, "email": nueva.email}
     datos["ultimo_id"] = datos["ultimo_id"] + 1
@@ -102,50 +105,31 @@ def registrar_solicitud(nueva, fecha=None):
                  "estado": ESTADO_PENDIENTE, "resp": None, "fecha": fecha or fecha_de_hoy()}
     datos["solicitudes"].append(solicitud)
     guardar_datos()
-    print("OK: solicitud " + str(solicitud["id"]) + " registrada")
     return solicitud["id"]
-
-
-def transicion_permitida(estado_actual, nuevo_estado):
-    if estado_actual == ESTADO_PENDIENTE:
-        return nuevo_estado in (ESTADO_EN_PROCESO, ESTADO_RECHAZADA)
-    if estado_actual == ESTADO_EN_PROCESO:
-        return nuevo_estado in (ESTADO_RESUELTA, ESTADO_RECHAZADA)
-    return False
 
 
 def cambiar_estado(id_solicitud, nuevo_estado):
     solicitud = obtener_solicitud(id_solicitud)
-    if solicitud is None:
-        print("ERROR: no existe la solicitud " + str(id_solicitud))
-        return False
     if esta_cerrada(solicitud):
-        print("ERROR: la solicitud ya esta cerrada")
-        return False
-    if not transicion_permitida(solicitud["estado"], nuevo_estado):
-        print("ERROR: transicion invalida " + solicitud["estado"] + " -> " + nuevo_estado)
-        return False
+        raise ErrorDeNegocio("la solicitud ya esta cerrada")
+    if nuevo_estado not in TRANSICIONES[solicitud["estado"]]:
+        raise ErrorDeNegocio("transicion invalida " + solicitud["estado"] + " -> " + nuevo_estado)
     solicitud["estado"] = nuevo_estado
     guardar_datos()
-    print("OK: solicitud " + str(id_solicitud) + " ahora " + nuevo_estado)
-    return True
 
 
 def asignar_responsable(id_solicitud, responsable):
     if responsable not in RESPONSABLES:
-        print("ERROR: responsable invalido")
-        return False
+        raise ErrorDeNegocio("responsable invalido")
     solicitud = obtener_solicitud(id_solicitud)
-    if solicitud is None:
-        print("ERROR: no existe la solicitud " + str(id_solicitud))
-        return False
     if esta_cerrada(solicitud):
-        print("ERROR: la solicitud ya esta cerrada")
-        return False
+        raise ErrorDeNegocio("la solicitud ya esta cerrada")
     solicitud["resp"] = responsable
     guardar_datos()
-    print("OK: solicitud " + str(id_solicitud) + " asignada a " + responsable)
-    return True
+
+
+def buscar_solicitudes(filtro):
+    return [s for s in datos["solicitudes"] if filtro.acepta(s)]
 
 
 def formatear_solicitud(solicitud):
@@ -155,32 +139,24 @@ def formatear_solicitud(solicitud):
                        solicitud["prioridad"], solicitud["estado"], responsable])
 
 
-def buscar_solicitudes(filtro):
-    encontradas = [s for s in datos["solicitudes"] if filtro.acepta(s)]
-    for solicitud in encontradas:
-        print(formatear_solicitud(solicitud))
-    print(str(len(encontradas)) + " resultado(s)")
-    return encontradas
-
-
-def imprimir_conteo(titulo, campo, valores):
-    print("-- " + titulo + " --")
-    for valor in valores:
-        cantidad = len([s for s in datos["solicitudes"] if s[campo] == valor])
-        print(valor + ": " + str(cantidad))
+def contar_por(campo, valores):
+    return [(valor, len([s for s in datos["solicitudes"] if s[campo] == valor]))
+            for valor in valores]
 
 
 def contar_abiertas_sin_responsable():
     return len([s for s in datos["solicitudes"] if s["resp"] is None and not esta_cerrada(s)])
 
 
-def imprimir_reporte():
-    print("=== REPORTE ===")
-    print("Total: " + str(len(datos["solicitudes"])))
-    imprimir_conteo("Por estado", "estado", ESTADOS)
-    imprimir_conteo("Por tipo", "tipo", TIPOS)
-    imprimir_conteo("Por prioridad", "prioridad", PRIORIDADES)
-    print("Sin responsable (abiertas): " + str(contar_abiertas_sin_responsable()))
+def generar_reporte():
+    lineas = ["=== REPORTE ===", "Total: " + str(len(datos["solicitudes"]))]
+    for titulo, campo, valores in (("Por estado", "estado", ESTADOS), ("Por tipo", "tipo", TIPOS),
+                                   ("Por prioridad", "prioridad", PRIORIDADES)):
+        lineas.append("-- " + titulo + " --")
+        for valor, cantidad in contar_por(campo, valores):
+            lineas.append(valor + ": " + str(cantidad))
+    lineas.append("Sin responsable (abiertas): " + str(contar_abiertas_sin_responsable()))
+    return lineas
 
 
 def leer_filtro(argumentos):
@@ -193,34 +169,47 @@ def leer_filtro(argumentos):
     return FiltroBusqueda(**valores)
 
 
-def main():
-    cargar_datos()
-    argumentos = sys.argv
+def ejecutar_comando(argumentos):
+    """Interpreta los argumentos y devuelve las lineas a mostrar. Lanza ErrorDeNegocio."""
     if len(argumentos) < 2:
-        print("Uso: main.py <registrar|estado|asignar|buscar|reporte> ...")
-        return
+        return ["Uso: main.py <registrar|estado|asignar|buscar|reporte> ..."]
     comando = argumentos[1]
     if comando == "registrar":
         if len(argumentos) < 8:
-            print("ERROR: faltan argumentos")
-            return
-        registrar_solicitud(NuevaSolicitud(*argumentos[2:8]))
-    elif comando == "estado":
+            raise ErrorDeNegocio("faltan argumentos")
+        id_nueva = registrar_solicitud(NuevaSolicitud(*argumentos[2:8]))
+        return ["OK: solicitud " + str(id_nueva) + " registrada"]
+    if comando == "estado":
         try:
-            cambiar_estado(int(argumentos[2]), argumentos[3])
+            id_solicitud, nuevo_estado = int(argumentos[2]), argumentos[3]
         except (IndexError, ValueError):
-            print("ERROR: argumentos invalidos")
-    elif comando == "asignar":
+            raise ErrorDeNegocio("argumentos invalidos")
+        cambiar_estado(id_solicitud, nuevo_estado)
+        return ["OK: solicitud " + str(id_solicitud) + " ahora " + nuevo_estado]
+    if comando == "asignar":
         try:
-            asignar_responsable(int(argumentos[2]), argumentos[3])
+            id_solicitud, responsable = int(argumentos[2]), argumentos[3]
         except (IndexError, ValueError):
-            print("ERROR: argumentos invalidos")
-    elif comando == "buscar":
-        buscar_solicitudes(leer_filtro(argumentos[2:]))
-    elif comando == "reporte":
-        imprimir_reporte()
-    else:
-        print("ERROR: comando desconocido " + comando)
+            raise ErrorDeNegocio("argumentos invalidos")
+        asignar_responsable(id_solicitud, responsable)
+        return ["OK: solicitud " + str(id_solicitud) + " asignada a " + responsable]
+    if comando == "buscar":
+        encontradas = buscar_solicitudes(leer_filtro(argumentos[2:]))
+        resumen = str(len(encontradas)) + " resultado(s)"
+        return [formatear_solicitud(s) for s in encontradas] + [resumen]
+    if comando == "reporte":
+        return generar_reporte()
+    raise ErrorDeNegocio("comando desconocido " + comando)
+
+
+def main():
+    cargar_datos()
+    try:
+        lineas = ejecutar_comando(sys.argv)
+    except ErrorDeNegocio as error:
+        lineas = ["ERROR: " + str(error)]
+    for linea in lineas:
+        print(linea)
 
 
 main()
