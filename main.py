@@ -1,202 +1,206 @@
-# Sistema de Gestion de Solicitudes Academicas - version inicial
+# Sistema de Gestion de Solicitudes Academicas
+# R1: constantes con nombre en lugar de strings magicos + nombres descriptivos
 import sys
 import json
 import os
 import datetime
 
-DB = {"solicitudes": [], "estudiantes": {}, "ultimo_id": 0}
-RUTA = os.environ.get("SOLICITUDES_DB", "data/solicitudes.json")
-# RUTA = "C:/Users/fede/Desktop/solicitudes.json"
-# TODO: agregar mas tipos de solicitud
+ESTADO_PENDIENTE = "Pendiente"
+ESTADO_EN_PROCESO = "En proceso"
+ESTADO_RESUELTA = "Resuelta"
+ESTADO_RECHAZADA = "Rechazada"
+ESTADOS = [ESTADO_PENDIENTE, ESTADO_EN_PROCESO, ESTADO_RESUELTA, ESTADO_RECHAZADA]
+ESTADOS_CERRADOS = (ESTADO_RESUELTA, ESTADO_RECHAZADA)
+TIPOS = ["constancia", "equivalencia", "reclamo", "otro"]
+PRIORIDADES = ["alta", "media", "baja"]
+RESPONSABLES = ["Alumnado", "Bedelia", "Tecnica"]
+
+datos = {"solicitudes": [], "estudiantes": {}, "ultimo_id": 0}
+RUTA_DATOS = os.environ.get("SOLICITUDES_DB", "data/solicitudes.json")
 
 
-def cargar():
-    global DB
+def cargar_datos():
+    global datos
     try:
-        f = open(RUTA)
-        DB = json.load(f)
-        f.close()
-    except:
+        with open(RUTA_DATOS) as archivo:
+            datos = json.load(archivo)
+    except (OSError, ValueError):
         pass
 
 
-def guardar():
-    carpeta = os.path.dirname(RUTA)
+def guardar_datos():
+    carpeta = os.path.dirname(RUTA_DATOS)
     if carpeta != "" and not os.path.exists(carpeta):
         os.makedirs(carpeta)
-    f = open(RUTA, "w")
-    json.dump(DB, f)
-    f.close()
+    with open(RUTA_DATOS, "w") as archivo:
+        json.dump(datos, archivo)
 
 
-def reg(dni, n, mail, t, p, d, fecha=None):
-    # registra una solicitud nueva
-    if dni == "" or n == "" or d == "":
+def registrar_solicitud(dni, nombre, email, tipo, prioridad, descripcion, fecha=None):
+    if dni == "" or nombre == "" or descripcion == "":
         print("ERROR: datos incompletos")
         return -1
-    if t != "constancia" and t != "equivalencia" and t != "reclamo" and t != "otro":
+    if tipo not in TIPOS:
         print("ERROR: tipo invalido")
         return -1
-    if p != "baja" and p != "media" and p != "alta":
+    if prioridad not in PRIORIDADES:
         print("ERROR: prioridad invalida")
         return -1
-    if "@" not in mail:
+    if "@" not in email:
         print("ERROR: email invalido")
         return -1
-    if dni not in DB["estudiantes"]:
-        DB["estudiantes"][dni] = {"nombre": n, "email": mail}
-    DB["ultimo_id"] = DB["ultimo_id"] + 1
-    if fecha == None:
+    if dni not in datos["estudiantes"]:
+        datos["estudiantes"][dni] = {"nombre": nombre, "email": email}
+    datos["ultimo_id"] = datos["ultimo_id"] + 1
+    if fecha is None:
         fecha = os.environ.get("SOLICITUDES_FECHA") or str(datetime.date.today())
-    s = {"id": DB["ultimo_id"], "dni": dni, "tipo": t, "prioridad": p,
-         "desc": d, "estado": "Pendiente", "resp": None, "fecha": fecha}
-    DB["solicitudes"].append(s)
-    guardar()
-    print("OK: solicitud " + str(s["id"]) + " registrada")
-    return s["id"]
+    solicitud = {"id": datos["ultimo_id"], "dni": dni, "tipo": tipo, "prioridad": prioridad,
+                 "desc": descripcion, "estado": ESTADO_PENDIENTE, "resp": None, "fecha": fecha}
+    datos["solicitudes"].append(solicitud)
+    guardar_datos()
+    print("OK: solicitud " + str(solicitud["id"]) + " registrada")
+    return solicitud["id"]
 
 
-def cambiar(i, ne):
-    s = None
-    for x in DB["solicitudes"]:
-        if x["id"] == i:
-            s = x
-    if s == None:
-        print("ERROR: no existe la solicitud " + str(i))
+def cambiar_estado(id_solicitud, nuevo_estado):
+    solicitud = None
+    for candidata in datos["solicitudes"]:
+        if candidata["id"] == id_solicitud:
+            solicitud = candidata
+    if solicitud is None:
+        print("ERROR: no existe la solicitud " + str(id_solicitud))
         return False
-    if s["estado"] == "Pendiente":
-        if ne == "En proceso" or ne == "Rechazada":
-            s["estado"] = ne
+    if solicitud["estado"] == ESTADO_PENDIENTE:
+        if nuevo_estado == ESTADO_EN_PROCESO or nuevo_estado == ESTADO_RECHAZADA:
+            solicitud["estado"] = nuevo_estado
         else:
-            print("ERROR: transicion invalida Pendiente -> " + ne)
+            print("ERROR: transicion invalida " + ESTADO_PENDIENTE + " -> " + nuevo_estado)
             return False
-    elif s["estado"] == "En proceso":
-        if ne == "Resuelta" or ne == "Rechazada":
-            s["estado"] = ne
+    elif solicitud["estado"] == ESTADO_EN_PROCESO:
+        if nuevo_estado == ESTADO_RESUELTA or nuevo_estado == ESTADO_RECHAZADA:
+            solicitud["estado"] = nuevo_estado
         else:
-            print("ERROR: transicion invalida En proceso -> " + ne)
+            print("ERROR: transicion invalida " + ESTADO_EN_PROCESO + " -> " + nuevo_estado)
             return False
     else:
         print("ERROR: la solicitud ya esta cerrada")
         return False
-    guardar()
-    print("OK: solicitud " + str(i) + " ahora " + ne)
+    guardar_datos()
+    print("OK: solicitud " + str(id_solicitud) + " ahora " + nuevo_estado)
     return True
 
 
-def asig(i, r):
-    if r != "Alumnado" and r != "Bedelia" and r != "Tecnica":
+def asignar_responsable(id_solicitud, responsable):
+    if responsable not in RESPONSABLES:
         print("ERROR: responsable invalido")
         return False
-    s = None
-    for x in DB["solicitudes"]:
-        if x["id"] == i:
-            s = x
-    if s == None:
-        print("ERROR: no existe la solicitud " + str(i))
+    solicitud = None
+    for candidata in datos["solicitudes"]:
+        if candidata["id"] == id_solicitud:
+            solicitud = candidata
+    if solicitud is None:
+        print("ERROR: no existe la solicitud " + str(id_solicitud))
         return False
-    if s["estado"] == "Resuelta" or s["estado"] == "Rechazada":
+    if solicitud["estado"] in ESTADOS_CERRADOS:
         print("ERROR: la solicitud ya esta cerrada")
         return False
-    s["resp"] = r
-    guardar()
-    print("OK: solicitud " + str(i) + " asignada a " + r)
+    solicitud["resp"] = responsable
+    guardar_datos()
+    print("OK: solicitud " + str(id_solicitud) + " asignada a " + responsable)
     return True
 
 
-def buscar(e=None, t=None, p=None):
-    res = []
-    for x in DB["solicitudes"]:
-        ok = True
-        if e != None and x["estado"] != e:
-            ok = False
-        if t != None and x["tipo"] != t:
-            ok = False
-        if p != None and x["prioridad"] != p:
-            ok = False
-        if ok:
-            res.append(x)
-    for x in res:
-        n = DB["estudiantes"][x["dni"]]["nombre"]
-        r = "-"
-        if x["resp"] != None:
-            r = x["resp"]
-        print("#" + str(x["id"]) + " | " + x["fecha"] + " | " + n + " | " + x["tipo"]
-              + " | " + x["prioridad"] + " | " + x["estado"] + " | " + r)
-    print(str(len(res)) + " resultado(s)")
-    return res
+def buscar_solicitudes(estado=None, tipo=None, prioridad=None):
+    encontradas = []
+    for solicitud in datos["solicitudes"]:
+        cumple = True
+        if estado is not None and solicitud["estado"] != estado:
+            cumple = False
+        if tipo is not None and solicitud["tipo"] != tipo:
+            cumple = False
+        if prioridad is not None and solicitud["prioridad"] != prioridad:
+            cumple = False
+        if cumple:
+            encontradas.append(solicitud)
+    for solicitud in encontradas:
+        nombre = datos["estudiantes"][solicitud["dni"]]["nombre"]
+        responsable = "-"
+        if solicitud["resp"] is not None:
+            responsable = solicitud["resp"]
+        print("#" + str(solicitud["id"]) + " | " + solicitud["fecha"] + " | " + nombre + " | "
+              + solicitud["tipo"] + " | " + solicitud["prioridad"] + " | " + solicitud["estado"]
+              + " | " + responsable)
+    print(str(len(encontradas)) + " resultado(s)")
+    return encontradas
 
 
-def rep():
+def imprimir_reporte():
     print("=== REPORTE ===")
-    print("Total: " + str(len(DB["solicitudes"])))
+    print("Total: " + str(len(datos["solicitudes"])))
     print("-- Por estado --")
-    for e in ["Pendiente", "En proceso", "Resuelta", "Rechazada"]:
-        n = 0
-        for x in DB["solicitudes"]:
-            if x["estado"] == e:
-                n = n + 1
-        print(e + ": " + str(n))
+    for estado in ESTADOS:
+        cantidad = 0
+        for solicitud in datos["solicitudes"]:
+            if solicitud["estado"] == estado:
+                cantidad = cantidad + 1
+        print(estado + ": " + str(cantidad))
     print("-- Por tipo --")
-    for t in ["constancia", "equivalencia", "reclamo", "otro"]:
-        n = 0
-        for x in DB["solicitudes"]:
-            if x["tipo"] == t:
-                n = n + 1
-        print(t + ": " + str(n))
+    for tipo in TIPOS:
+        cantidad = 0
+        for solicitud in datos["solicitudes"]:
+            if solicitud["tipo"] == tipo:
+                cantidad = cantidad + 1
+        print(tipo + ": " + str(cantidad))
     print("-- Por prioridad --")
-    for p in ["alta", "media", "baja"]:
-        n = 0
-        for x in DB["solicitudes"]:
-            if x["prioridad"] == p:
-                n = n + 1
-        print(p + ": " + str(n))
-    sin = 0
-    for x in DB["solicitudes"]:
-        if x["resp"] == None:
-            if x["estado"] != "Resuelta" and x["estado"] != "Rechazada":
-                sin = sin + 1
-    print("Sin responsable (abiertas): " + str(sin))
+    for prioridad in PRIORIDADES:
+        cantidad = 0
+        for solicitud in datos["solicitudes"]:
+            if solicitud["prioridad"] == prioridad:
+                cantidad = cantidad + 1
+        print(prioridad + ": " + str(cantidad))
+    sin_responsable = 0
+    for solicitud in datos["solicitudes"]:
+        if solicitud["resp"] is None and solicitud["estado"] not in ESTADOS_CERRADOS:
+            sin_responsable = sin_responsable + 1
+    print("Sin responsable (abiertas): " + str(sin_responsable))
 
 
 def main():
-    cargar()
-    a = sys.argv
-    if len(a) < 2:
+    cargar_datos()
+    argumentos = sys.argv
+    if len(argumentos) < 2:
         print("Uso: main.py <registrar|estado|asignar|buscar|reporte> ...")
         return
-    c = a[1]
-    if c == "registrar":
-        if len(a) < 8:
+    comando = argumentos[1]
+    if comando == "registrar":
+        if len(argumentos) < 8:
             print("ERROR: faltan argumentos")
             return
-        reg(a[2], a[3], a[4], a[5], a[6], a[7])
-    elif c == "estado":
+        registrar_solicitud(*argumentos[2:8])
+    elif comando == "estado":
         try:
-            cambiar(int(a[2]), a[3])
-        except:
+            cambiar_estado(int(argumentos[2]), argumentos[3])
+        except (IndexError, ValueError):
             print("ERROR: argumentos invalidos")
-    elif c == "asignar":
+    elif comando == "asignar":
         try:
-            asig(int(a[2]), a[3])
-        except:
+            asignar_responsable(int(argumentos[2]), argumentos[3])
+        except (IndexError, ValueError):
             print("ERROR: argumentos invalidos")
-    elif c == "buscar":
-        e = None
-        t = None
-        p = None
-        for k in range(2, len(a)):
-            if a[k].startswith("--estado="):
-                e = a[k][9:]
-            if a[k].startswith("--tipo="):
-                t = a[k][7:]
-            if a[k].startswith("--prioridad="):
-                p = a[k][12:]
-        buscar(e, t, p)
-    elif c == "reporte":
-        rep()
+    elif comando == "buscar":
+        estado = tipo = prioridad = None
+        for argumento in argumentos[2:]:
+            if argumento.startswith("--estado="):
+                estado = argumento[len("--estado="):]
+            if argumento.startswith("--tipo="):
+                tipo = argumento[len("--tipo="):]
+            if argumento.startswith("--prioridad="):
+                prioridad = argumento[len("--prioridad="):]
+        buscar_solicitudes(estado, tipo, prioridad)
+    elif comando == "reporte":
+        imprimir_reporte()
     else:
-        print("ERROR: comando desconocido " + c)
+        print("ERROR: comando desconocido " + comando)
 
 
 main()
