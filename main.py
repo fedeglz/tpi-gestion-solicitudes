@@ -1,5 +1,5 @@
 # Sistema de Gestion de Solicitudes Academicas
-# R1: constantes con nombre en lugar de strings magicos + nombres descriptivos
+# R2: Extract Method (busqueda por id, validacion, filtrado, formato, conteo)
 import sys
 import json
 import os
@@ -36,55 +36,71 @@ def guardar_datos():
         json.dump(datos, archivo)
 
 
-def registrar_solicitud(dni, nombre, email, tipo, prioridad, descripcion, fecha=None):
+def fecha_de_hoy():
+    return os.environ.get("SOLICITUDES_FECHA") or str(datetime.date.today())
+
+
+def esta_cerrada(solicitud):
+    return solicitud["estado"] in ESTADOS_CERRADOS
+
+
+def obtener_solicitud(id_solicitud):
+    for solicitud in datos["solicitudes"]:
+        if solicitud["id"] == id_solicitud:
+            return solicitud
+    return None
+
+
+def validar_nueva_solicitud(dni, nombre, email, tipo, prioridad, descripcion):
+    """Devuelve el mensaje de error o None si los datos son validos."""
     if dni == "" or nombre == "" or descripcion == "":
-        print("ERROR: datos incompletos")
-        return -1
+        return "datos incompletos"
     if tipo not in TIPOS:
-        print("ERROR: tipo invalido")
-        return -1
+        return "tipo invalido"
     if prioridad not in PRIORIDADES:
-        print("ERROR: prioridad invalida")
-        return -1
+        return "prioridad invalida"
     if "@" not in email:
-        print("ERROR: email invalido")
+        return "email invalido"
+    return None
+
+
+def registrar_solicitud(dni, nombre, email, tipo, prioridad, descripcion, fecha=None):
+    error = validar_nueva_solicitud(dni, nombre, email, tipo, prioridad, descripcion)
+    if error is not None:
+        print("ERROR: " + error)
         return -1
     if dni not in datos["estudiantes"]:
         datos["estudiantes"][dni] = {"nombre": nombre, "email": email}
     datos["ultimo_id"] = datos["ultimo_id"] + 1
-    if fecha is None:
-        fecha = os.environ.get("SOLICITUDES_FECHA") or str(datetime.date.today())
     solicitud = {"id": datos["ultimo_id"], "dni": dni, "tipo": tipo, "prioridad": prioridad,
-                 "desc": descripcion, "estado": ESTADO_PENDIENTE, "resp": None, "fecha": fecha}
+                 "desc": descripcion, "estado": ESTADO_PENDIENTE, "resp": None,
+                 "fecha": fecha or fecha_de_hoy()}
     datos["solicitudes"].append(solicitud)
     guardar_datos()
     print("OK: solicitud " + str(solicitud["id"]) + " registrada")
     return solicitud["id"]
 
 
+def transicion_permitida(estado_actual, nuevo_estado):
+    if estado_actual == ESTADO_PENDIENTE:
+        return nuevo_estado in (ESTADO_EN_PROCESO, ESTADO_RECHAZADA)
+    if estado_actual == ESTADO_EN_PROCESO:
+        return nuevo_estado in (ESTADO_RESUELTA, ESTADO_RECHAZADA)
+    return False
+
+
 def cambiar_estado(id_solicitud, nuevo_estado):
-    solicitud = None
-    for candidata in datos["solicitudes"]:
-        if candidata["id"] == id_solicitud:
-            solicitud = candidata
+    solicitud = obtener_solicitud(id_solicitud)
     if solicitud is None:
         print("ERROR: no existe la solicitud " + str(id_solicitud))
         return False
-    if solicitud["estado"] == ESTADO_PENDIENTE:
-        if nuevo_estado == ESTADO_EN_PROCESO or nuevo_estado == ESTADO_RECHAZADA:
-            solicitud["estado"] = nuevo_estado
-        else:
-            print("ERROR: transicion invalida " + ESTADO_PENDIENTE + " -> " + nuevo_estado)
-            return False
-    elif solicitud["estado"] == ESTADO_EN_PROCESO:
-        if nuevo_estado == ESTADO_RESUELTA or nuevo_estado == ESTADO_RECHAZADA:
-            solicitud["estado"] = nuevo_estado
-        else:
-            print("ERROR: transicion invalida " + ESTADO_EN_PROCESO + " -> " + nuevo_estado)
-            return False
-    else:
+    if esta_cerrada(solicitud):
         print("ERROR: la solicitud ya esta cerrada")
         return False
+    if not transicion_permitida(solicitud["estado"], nuevo_estado):
+        print("ERROR: transicion invalida " + solicitud["estado"] + " -> " + nuevo_estado)
+        return False
+    solicitud["estado"] = nuevo_estado
     guardar_datos()
     print("OK: solicitud " + str(id_solicitud) + " ahora " + nuevo_estado)
     return True
@@ -94,14 +110,11 @@ def asignar_responsable(id_solicitud, responsable):
     if responsable not in RESPONSABLES:
         print("ERROR: responsable invalido")
         return False
-    solicitud = None
-    for candidata in datos["solicitudes"]:
-        if candidata["id"] == id_solicitud:
-            solicitud = candidata
+    solicitud = obtener_solicitud(id_solicitud)
     if solicitud is None:
         print("ERROR: no existe la solicitud " + str(id_solicitud))
         return False
-    if solicitud["estado"] in ESTADOS_CERRADOS:
+    if esta_cerrada(solicitud):
         print("ERROR: la solicitud ya esta cerrada")
         return False
     solicitud["resp"] = responsable
@@ -110,59 +123,54 @@ def asignar_responsable(id_solicitud, responsable):
     return True
 
 
+def cumple_filtros(solicitud, estado, tipo, prioridad):
+    return ((estado is None or solicitud["estado"] == estado)
+            and (tipo is None or solicitud["tipo"] == tipo)
+            and (prioridad is None or solicitud["prioridad"] == prioridad))
+
+
+def formatear_solicitud(solicitud):
+    nombre = datos["estudiantes"][solicitud["dni"]]["nombre"]
+    responsable = solicitud["resp"] if solicitud["resp"] is not None else "-"
+    return " | ".join(["#" + str(solicitud["id"]), solicitud["fecha"], nombre, solicitud["tipo"],
+                       solicitud["prioridad"], solicitud["estado"], responsable])
+
+
 def buscar_solicitudes(estado=None, tipo=None, prioridad=None):
-    encontradas = []
-    for solicitud in datos["solicitudes"]:
-        cumple = True
-        if estado is not None and solicitud["estado"] != estado:
-            cumple = False
-        if tipo is not None and solicitud["tipo"] != tipo:
-            cumple = False
-        if prioridad is not None and solicitud["prioridad"] != prioridad:
-            cumple = False
-        if cumple:
-            encontradas.append(solicitud)
+    encontradas = [s for s in datos["solicitudes"] if cumple_filtros(s, estado, tipo, prioridad)]
     for solicitud in encontradas:
-        nombre = datos["estudiantes"][solicitud["dni"]]["nombre"]
-        responsable = "-"
-        if solicitud["resp"] is not None:
-            responsable = solicitud["resp"]
-        print("#" + str(solicitud["id"]) + " | " + solicitud["fecha"] + " | " + nombre + " | "
-              + solicitud["tipo"] + " | " + solicitud["prioridad"] + " | " + solicitud["estado"]
-              + " | " + responsable)
+        print(formatear_solicitud(solicitud))
     print(str(len(encontradas)) + " resultado(s)")
     return encontradas
+
+
+def imprimir_conteo(titulo, campo, valores):
+    print("-- " + titulo + " --")
+    for valor in valores:
+        cantidad = len([s for s in datos["solicitudes"] if s[campo] == valor])
+        print(valor + ": " + str(cantidad))
+
+
+def contar_abiertas_sin_responsable():
+    return len([s for s in datos["solicitudes"] if s["resp"] is None and not esta_cerrada(s)])
 
 
 def imprimir_reporte():
     print("=== REPORTE ===")
     print("Total: " + str(len(datos["solicitudes"])))
-    print("-- Por estado --")
-    for estado in ESTADOS:
-        cantidad = 0
-        for solicitud in datos["solicitudes"]:
-            if solicitud["estado"] == estado:
-                cantidad = cantidad + 1
-        print(estado + ": " + str(cantidad))
-    print("-- Por tipo --")
-    for tipo in TIPOS:
-        cantidad = 0
-        for solicitud in datos["solicitudes"]:
-            if solicitud["tipo"] == tipo:
-                cantidad = cantidad + 1
-        print(tipo + ": " + str(cantidad))
-    print("-- Por prioridad --")
-    for prioridad in PRIORIDADES:
-        cantidad = 0
-        for solicitud in datos["solicitudes"]:
-            if solicitud["prioridad"] == prioridad:
-                cantidad = cantidad + 1
-        print(prioridad + ": " + str(cantidad))
-    sin_responsable = 0
-    for solicitud in datos["solicitudes"]:
-        if solicitud["resp"] is None and solicitud["estado"] not in ESTADOS_CERRADOS:
-            sin_responsable = sin_responsable + 1
-    print("Sin responsable (abiertas): " + str(sin_responsable))
+    imprimir_conteo("Por estado", "estado", ESTADOS)
+    imprimir_conteo("Por tipo", "tipo", TIPOS)
+    imprimir_conteo("Por prioridad", "prioridad", PRIORIDADES)
+    print("Sin responsable (abiertas): " + str(contar_abiertas_sin_responsable()))
+
+
+def leer_filtros(argumentos):
+    filtros = {"--estado=": None, "--tipo=": None, "--prioridad=": None}
+    for argumento in argumentos:
+        for prefijo in filtros:
+            if argumento.startswith(prefijo):
+                filtros[prefijo] = argumento[len(prefijo):]
+    return filtros["--estado="], filtros["--tipo="], filtros["--prioridad="]
 
 
 def main():
@@ -188,15 +196,7 @@ def main():
         except (IndexError, ValueError):
             print("ERROR: argumentos invalidos")
     elif comando == "buscar":
-        estado = tipo = prioridad = None
-        for argumento in argumentos[2:]:
-            if argumento.startswith("--estado="):
-                estado = argumento[len("--estado="):]
-            if argumento.startswith("--tipo="):
-                tipo = argumento[len("--tipo="):]
-            if argumento.startswith("--prioridad="):
-                prioridad = argumento[len("--prioridad="):]
-        buscar_solicitudes(estado, tipo, prioridad)
+        buscar_solicitudes(*leer_filtros(argumentos[2:]))
     elif comando == "reporte":
         imprimir_reporte()
     else:
