@@ -1,0 +1,211 @@
+$ main.py 
+Uso: main.py <registrar|estado|asignar|buscar|reporte> ...
+[exit=0]
+$ main.py 'borrar'
+ERROR: comando desconocido borrar
+[exit=0]
+$ main.py 'reporte'
+=== REPORTE ===
+Total: 0
+-- Por estado --
+Pendiente: 0
+En proceso: 0
+Resuelta: 0
+Rechazada: 0
+-- Por tipo --
+constancia: 0
+equivalencia: 0
+reclamo: 0
+otro: 0
+-- Por prioridad --
+alta: 0
+media: 0
+baja: 0
+Sin responsable (abiertas): 0
+[exit=0]
+$ main.py 'buscar'
+0 resultado(s)
+[exit=0]
+$ main.py 'registrar' '30111222' 'Ana Perez' 'ana@mail.com' 'constancia' 'alta' 'Constancia regular'
+OK: solicitud 1 registrada
+[exit=0]
+$ main.py 'registrar' '30999888' 'Luis Gomez' 'luis@mail.com' 'reclamo' 'media' 'Reclamo de nota'
+OK: solicitud 2 registrada
+[exit=0]
+$ main.py 'registrar' '30111222' 'Ana Perez' 'ana@mail.com' 'equivalencia' 'baja' 'Equivalencia de Algebra'
+OK: solicitud 3 registrada
+[exit=0]
+$ main.py 'registrar' '30555111' 'Sol Diaz' 'sol@mail.com' 'otro' 'alta' 'Consulta general'
+OK: solicitud 4 registrada
+[exit=0]
+$ main.py 'registrar' '' 'Sin Dni' 'x@mail.com' 'otro' 'alta' 'x'
+ERROR: datos incompletos
+[exit=0]
+$ main.py 'registrar' '1' 'N' 'x@mail.com' 'beca' 'alta' 'x'
+ERROR: tipo invalido
+[exit=0]
+$ main.py 'registrar' '1' 'N' 'x@mail.com' 'otro' 'urgente' 'x'
+ERROR: prioridad invalida
+[exit=0]
+$ main.py 'registrar' '1' 'N' 'sin-arroba' 'otro' 'alta' 'x'
+ERROR: email invalido
+[exit=0]
+$ main.py 'registrar' '1' 'N'
+ERROR: faltan argumentos
+[exit=0]
+$ main.py 'estado' '1' 'En proceso'
+OK: solicitud 1 ahora En proceso
+[exit=0]
+$ main.py 'estado' '1' 'Pendiente'
+ERROR: transicion invalida En proceso -> Pendiente
+[exit=0]
+$ main.py 'estado' '1' 'Resuelta'
+OK: solicitud 1 ahora Resuelta
+[exit=0]
+$ main.py 'estado' '1' 'En proceso'
+ERROR: la solicitud ya esta cerrada
+[exit=0]
+$ main.py 'estado' '2' 'Resuelta'
+ERROR: transicion invalida Pendiente -> Resuelta
+[exit=0]
+$ main.py 'estado' '2' 'Rechazada'
+OK: solicitud 2 ahora Rechazada
+[exit=0]
+$ main.py 'estado' '2' 'En proceso'
+ERROR: la solicitud ya esta cerrada
+[exit=0]
+$ main.py 'estado' '77' 'En proceso'
+ERROR: no existe la solicitud 77
+[exit=0]
+$ main.py 'estado' 'x' 'En proceso'
+ERROR: argumentos invalidos
+[exit=0]
+$ main.py 'estado' '3' 'Inventado'
+ERROR: transicion invalida Pendiente -> Inventado
+[exit=0]
+$ main.py 'asignar' '1' 'Bedelia'
+ERROR: la solicitud ya esta cerrada
+[exit=0]
+$ main.py 'asignar' '3' 'Tecnica'
+OK: solicitud 3 asignada a Tecnica
+[exit=0]
+$ main.py 'asignar' '3' 'Alumnado'
+OK: solicitud 3 asignada a Alumnado
+[exit=0]
+$ main.py 'asignar' '3' 'Rectorado'
+ERROR: responsable invalido
+[exit=0]
+$ main.py 'asignar' '99' 'Rectorado'
+ERROR: responsable invalido
+[exit=0]
+$ main.py 'asignar' '99' 'Bedelia'
+ERROR: no existe la solicitud 99
+[exit=0]
+$ main.py 'asignar' '2' 'Bedelia'
+ERROR: la solicitud ya esta cerrada
+[exit=0]
+$ main.py 'asignar' 'q' 'Bedelia'
+ERROR: argumentos invalidos
+[exit=0]
+$ main.py 'buscar'
+#1 | 2026-03-10 | Ana Perez | constancia | alta | Resuelta | -
+#2 | 2026-03-10 | Luis Gomez | reclamo | media | Rechazada | -
+#3 | 2026-03-10 | Ana Perez | equivalencia | baja | Pendiente | Alumnado
+#4 | 2026-03-10 | Sol Diaz | otro | alta | Pendiente | -
+4 resultado(s)
+[exit=0]
+$ main.py 'buscar' '--estado=Pendiente'
+#3 | 2026-03-10 | Ana Perez | equivalencia | baja | Pendiente | Alumnado
+#4 | 2026-03-10 | Sol Diaz | otro | alta | Pendiente | -
+2 resultado(s)
+[exit=0]
+$ main.py 'buscar' '--tipo=otro'
+#4 | 2026-03-10 | Sol Diaz | otro | alta | Pendiente | -
+1 resultado(s)
+[exit=0]
+$ main.py 'buscar' '--prioridad=alta' '--estado=Resuelta'
+#1 | 2026-03-10 | Ana Perez | constancia | alta | Resuelta | -
+1 resultado(s)
+[exit=0]
+$ main.py 'buscar' '--estado=Inventado'
+0 resultado(s)
+[exit=0]
+$ main.py 'reporte'
+=== REPORTE ===
+Total: 4
+-- Por estado --
+Pendiente: 2
+En proceso: 0
+Resuelta: 1
+Rechazada: 1
+-- Por tipo --
+constancia: 1
+equivalencia: 1
+reclamo: 1
+otro: 1
+-- Por prioridad --
+alta: 2
+media: 1
+baja: 1
+Sin responsable (abiertas): 1
+[exit=0]
+== DATOS FINALES ==
+{
+ "estudiantes": {
+  "30111222": {
+   "email": "ana@mail.com",
+   "nombre": "Ana Perez"
+  },
+  "30555111": {
+   "email": "sol@mail.com",
+   "nombre": "Sol Diaz"
+  },
+  "30999888": {
+   "email": "luis@mail.com",
+   "nombre": "Luis Gomez"
+  }
+ },
+ "solicitudes": [
+  {
+   "desc": "Constancia regular",
+   "dni": "30111222",
+   "estado": "Resuelta",
+   "fecha": "2026-03-10",
+   "id": 1,
+   "prioridad": "alta",
+   "resp": null,
+   "tipo": "constancia"
+  },
+  {
+   "desc": "Reclamo de nota",
+   "dni": "30999888",
+   "estado": "Rechazada",
+   "fecha": "2026-03-10",
+   "id": 2,
+   "prioridad": "media",
+   "resp": null,
+   "tipo": "reclamo"
+  },
+  {
+   "desc": "Equivalencia de Algebra",
+   "dni": "30111222",
+   "estado": "Pendiente",
+   "fecha": "2026-03-10",
+   "id": 3,
+   "prioridad": "baja",
+   "resp": "Alumnado",
+   "tipo": "equivalencia"
+  },
+  {
+   "desc": "Consulta general",
+   "dni": "30555111",
+   "estado": "Pendiente",
+   "fecha": "2026-03-10",
+   "id": 4,
+   "prioridad": "alta",
+   "resp": null,
+   "tipo": "otro"
+  }
+ ],
+ "ultimo_id": 4
+}
