@@ -1,0 +1,75 @@
+# Metricas de estado-refactorizado
+## radon cc -s -a
+gestion_solicitudes/cli.py
+    F 38:0 ejecutar - B (8)
+    F 28:0 _leer_filtro - A (4)
+    F 63:0 main - A (3)
+    F 17:0 _fecha_de_hoy - A (2)
+    F 21:0 _leer_id_y_texto - A (2)
+    F 13:0 _ruta_datos - A (1)
+gestion_solicitudes/repositorio.py
+    M 32:4 RepositorioJSON.cargar - A (5)
+    C 28:0 RepositorioJSON - A (4)
+    M 47:4 RepositorioJSON.guardar - A (4)
+    C 22:0 Repositorio - A (2)
+    M 60:4 RepositorioJSON._a_dict - A (2)
+    M 66:4 RepositorioJSON._a_solicitud - A (2)
+    C 10:0 ErrorDeDatos - A (1)
+    C 15:0 Almacen - A (1)
+    M 24:4 Repositorio.cargar - A (1)
+    M 25:4 Repositorio.guardar - A (1)
+    M 29:4 RepositorioJSON.__init__ - A (1)
+gestion_solicitudes/dominio.py
+    M 92:4 Solicitud.cumple - B (6)
+    F 110:0 validar_nueva_solicitud - A (5)
+    C 78:0 Solicitud - A (4)
+    M 97:4 Solicitud.cambiar_estado - A (4)
+    F 44:0 interpretar - A (3)
+    M 104:4 Solicitud.asignar - A (2)
+    C 7:0 ErrorDeNegocio - A (1)
+    C 11:0 Estado - A (1)
+    C 18:0 Tipo - A (1)
+    C 25:0 Prioridad - A (1)
+    C 31:0 Area - A (1)
+    C 53:0 Estudiante - A (1)
+    C 60:0 NuevaSolicitud - A (1)
+    C 71:0 FiltroBusqueda - A (1)
+    M 89:4 Solicitud.esta_cerrada - A (1)
+gestion_solicitudes/reporte.py
+    F 18:0 _conteo - A (4)
+    F 26:0 generar_reporte - A (4)
+    F 5:0 formatear_solicitud - A (2)
+    F 12:0 listado - A (2)
+gestion_solicitudes/servicio.py
+    M 35:4 ServicioSolicitudes.buscar - A (3)
+    M 44:4 ServicioSolicitudes._obtener - A (3)
+    C 6:0 ServicioSolicitudes - A (2)
+    M 7:4 ServicioSolicitudes.__init__ - A (1)
+    M 12:4 ServicioSolicitudes.registrar - A (1)
+    M 24:4 ServicioSolicitudes.cambiar_estado - A (1)
+    M 29:4 ServicioSolicitudes.asignar_responsable - A (1)
+    M 38:4 ServicioSolicitudes.nombre_de - A (1)
+    M 41:4 ServicioSolicitudes.todas - A (1)
+
+45 blocks (classes, functions, methods) analyzed.
+Average complexity: A (2.2888888888888888)
+## radon mi -s
+main.py - A (78.02)
+gestion_solicitudes/cli.py - A (43.32)
+gestion_solicitudes/__init__.py - A (100.00)
+gestion_solicitudes/repositorio.py - A (61.30)
+gestion_solicitudes/dominio.py - A (42.36)
+gestion_solicitudes/reporte.py - A (52.06)
+gestion_solicitudes/servicio.py - A (67.93)
+## flake8 --max-line-length=100 (sin salida = sin avisos)
+## coverage (pruebas unitarias)
+Name                                 Stmts   Miss  Cover
+--------------------------------------------------------
+gestion_solicitudes/__init__.py          0      0   100%
+gestion_solicitudes/cli.py              54     54     0%
+gestion_solicitudes/dominio.py          79      0   100%
+gestion_solicitudes/reporte.py          22      3    86%
+gestion_solicitudes/repositorio.py      37      2    95%
+gestion_solicitudes/servicio.py         34      1    97%
+--------------------------------------------------------
+TOTAL                                  226     60    73%
