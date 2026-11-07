@@ -4,7 +4,7 @@ import os
 
 from . import reporte
 from .dominio import ErrorDeNegocio, FiltroBusqueda, NuevaSolicitud
-from .repositorio import RepositorioJSON
+from .repositorio import ErrorDeDatos, RepositorioJSON
 from .servicio import ServicioSolicitudes
 
 USO = "Uso: main.py <registrar|estado|asignar|buscar|reporte> ..."
@@ -61,10 +61,10 @@ def ejecutar(args, servicio):
 
 
 def main(args):
-    servicio = ServicioSolicitudes(RepositorioJSON(_ruta_datos()), _fecha_de_hoy)
     try:
+        servicio = ServicioSolicitudes(RepositorioJSON(_ruta_datos()), _fecha_de_hoy)
         lineas = ejecutar(args, servicio)
-    except ErrorDeNegocio as error:
+    except (ErrorDeNegocio, ErrorDeDatos) as error:
         lineas = ["ERROR: %s" % error]
     for linea in lineas:
         print(linea)

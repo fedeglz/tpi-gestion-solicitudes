@@ -7,6 +7,10 @@ from typing import Dict, List, Protocol
 from .dominio import Area, Estado, Estudiante, Prioridad, Solicitud, Tipo
 
 
+class ErrorDeDatos(Exception):
+    """El archivo de datos existe pero no se puede interpretar."""
+
+
 @dataclass
 class Almacen:
     """Estado completo que se carga y se guarda de una sola vez."""
@@ -26,16 +30,19 @@ class RepositorioJSON:
         self._ruta = ruta
 
     def cargar(self):
+        if not os.path.exists(self._ruta):
+            return Almacen()
         try:
             with open(self._ruta, encoding="utf-8") as archivo:
                 crudo = json.load(archivo)
-        except (OSError, ValueError):
-            return Almacen()
-        return Almacen(
-            solicitudes=[self._a_solicitud(s) for s in crudo["solicitudes"]],
-            estudiantes={dni: Estudiante(dni, e["nombre"], e["email"])
-                         for dni, e in crudo["estudiantes"].items()},
-            ultimo_id=crudo["ultimo_id"])
+            return Almacen(
+                solicitudes=[self._a_solicitud(s) for s in crudo["solicitudes"]],
+                estudiantes={dni: Estudiante(dni, e["nombre"], e["email"])
+                             for dni, e in crudo["estudiantes"].items()},
+                ultimo_id=crudo["ultimo_id"])
+        except (OSError, ValueError, KeyError, TypeError) as causa:
+            # Antes se ignoraba en silencio y el siguiente guardado PISABA los datos.
+            raise ErrorDeDatos("archivo de datos corrupto: %s" % self._ruta) from causa
 
     def guardar(self, almacen):
         carpeta = os.path.dirname(self._ruta)
