@@ -1,9 +1,11 @@
 # Sistema de Gestion de Solicitudes Academicas
-# R2: Extract Method (busqueda por id, validacion, filtrado, formato, conteo)
+# R3: Introduce Parameter Object (NuevaSolicitud, FiltroBusqueda)
 import sys
 import json
 import os
 import datetime
+from dataclasses import dataclass
+from typing import Optional
 
 ESTADO_PENDIENTE = "Pendiente"
 ESTADO_EN_PROCESO = "En proceso"
@@ -17,6 +19,29 @@ RESPONSABLES = ["Alumnado", "Bedelia", "Tecnica"]
 
 datos = {"solicitudes": [], "estudiantes": {}, "ultimo_id": 0}
 RUTA_DATOS = os.environ.get("SOLICITUDES_DB", "data/solicitudes.json")
+
+
+@dataclass(frozen=True)
+class NuevaSolicitud:
+    """Agrupa los datos de alta que antes viajaban como 6 parametros sueltos."""
+    dni: str
+    nombre: str
+    email: str
+    tipo: str
+    prioridad: str
+    descripcion: str
+
+
+@dataclass(frozen=True)
+class FiltroBusqueda:
+    estado: Optional[str] = None
+    tipo: Optional[str] = None
+    prioridad: Optional[str] = None
+
+    def acepta(self, solicitud):
+        return ((self.estado is None or solicitud["estado"] == self.estado)
+                and (self.tipo is None or solicitud["tipo"] == self.tipo)
+                and (self.prioridad is None or solicitud["prioridad"] == self.prioridad))
 
 
 def cargar_datos():
@@ -51,30 +76,30 @@ def obtener_solicitud(id_solicitud):
     return None
 
 
-def validar_nueva_solicitud(dni, nombre, email, tipo, prioridad, descripcion):
+def validar_nueva_solicitud(nueva):
     """Devuelve el mensaje de error o None si los datos son validos."""
-    if dni == "" or nombre == "" or descripcion == "":
+    if nueva.dni == "" or nueva.nombre == "" or nueva.descripcion == "":
         return "datos incompletos"
-    if tipo not in TIPOS:
+    if nueva.tipo not in TIPOS:
         return "tipo invalido"
-    if prioridad not in PRIORIDADES:
+    if nueva.prioridad not in PRIORIDADES:
         return "prioridad invalida"
-    if "@" not in email:
+    if "@" not in nueva.email:
         return "email invalido"
     return None
 
 
-def registrar_solicitud(dni, nombre, email, tipo, prioridad, descripcion, fecha=None):
-    error = validar_nueva_solicitud(dni, nombre, email, tipo, prioridad, descripcion)
+def registrar_solicitud(nueva, fecha=None):
+    error = validar_nueva_solicitud(nueva)
     if error is not None:
         print("ERROR: " + error)
         return -1
-    if dni not in datos["estudiantes"]:
-        datos["estudiantes"][dni] = {"nombre": nombre, "email": email}
+    if nueva.dni not in datos["estudiantes"]:
+        datos["estudiantes"][nueva.dni] = {"nombre": nueva.nombre, "email": nueva.email}
     datos["ultimo_id"] = datos["ultimo_id"] + 1
-    solicitud = {"id": datos["ultimo_id"], "dni": dni, "tipo": tipo, "prioridad": prioridad,
-                 "desc": descripcion, "estado": ESTADO_PENDIENTE, "resp": None,
-                 "fecha": fecha or fecha_de_hoy()}
+    solicitud = {"id": datos["ultimo_id"], "dni": nueva.dni, "tipo": nueva.tipo,
+                 "prioridad": nueva.prioridad, "desc": nueva.descripcion,
+                 "estado": ESTADO_PENDIENTE, "resp": None, "fecha": fecha or fecha_de_hoy()}
     datos["solicitudes"].append(solicitud)
     guardar_datos()
     print("OK: solicitud " + str(solicitud["id"]) + " registrada")
@@ -123,12 +148,6 @@ def asignar_responsable(id_solicitud, responsable):
     return True
 
 
-def cumple_filtros(solicitud, estado, tipo, prioridad):
-    return ((estado is None or solicitud["estado"] == estado)
-            and (tipo is None or solicitud["tipo"] == tipo)
-            and (prioridad is None or solicitud["prioridad"] == prioridad))
-
-
 def formatear_solicitud(solicitud):
     nombre = datos["estudiantes"][solicitud["dni"]]["nombre"]
     responsable = solicitud["resp"] if solicitud["resp"] is not None else "-"
@@ -136,8 +155,8 @@ def formatear_solicitud(solicitud):
                        solicitud["prioridad"], solicitud["estado"], responsable])
 
 
-def buscar_solicitudes(estado=None, tipo=None, prioridad=None):
-    encontradas = [s for s in datos["solicitudes"] if cumple_filtros(s, estado, tipo, prioridad)]
+def buscar_solicitudes(filtro):
+    encontradas = [s for s in datos["solicitudes"] if filtro.acepta(s)]
     for solicitud in encontradas:
         print(formatear_solicitud(solicitud))
     print(str(len(encontradas)) + " resultado(s)")
@@ -164,13 +183,14 @@ def imprimir_reporte():
     print("Sin responsable (abiertas): " + str(contar_abiertas_sin_responsable()))
 
 
-def leer_filtros(argumentos):
-    filtros = {"--estado=": None, "--tipo=": None, "--prioridad=": None}
+def leer_filtro(argumentos):
+    valores = {}
     for argumento in argumentos:
-        for prefijo in filtros:
+        for campo in ("estado", "tipo", "prioridad"):
+            prefijo = "--" + campo + "="
             if argumento.startswith(prefijo):
-                filtros[prefijo] = argumento[len(prefijo):]
-    return filtros["--estado="], filtros["--tipo="], filtros["--prioridad="]
+                valores[campo] = argumento[len(prefijo):]
+    return FiltroBusqueda(**valores)
 
 
 def main():
@@ -184,7 +204,7 @@ def main():
         if len(argumentos) < 8:
             print("ERROR: faltan argumentos")
             return
-        registrar_solicitud(*argumentos[2:8])
+        registrar_solicitud(NuevaSolicitud(*argumentos[2:8]))
     elif comando == "estado":
         try:
             cambiar_estado(int(argumentos[2]), argumentos[3])
@@ -196,7 +216,7 @@ def main():
         except (IndexError, ValueError):
             print("ERROR: argumentos invalidos")
     elif comando == "buscar":
-        buscar_solicitudes(*leer_filtros(argumentos[2:]))
+        buscar_solicitudes(leer_filtro(argumentos[2:]))
     elif comando == "reporte":
         imprimir_reporte()
     else:
