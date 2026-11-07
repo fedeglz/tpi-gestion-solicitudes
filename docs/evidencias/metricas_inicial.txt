@@ -1,0 +1,28 @@
+# Metricas de estado-inicial (main.py)
+## radon cc -s -a
+m1/main.py
+    F 32:0 reg - C (15)
+    F 130:0 rep - C (14)
+    F 162:0 main - C (14)
+    F 107:0 buscar - C (11)
+    F 59:0 cambiar - B (10)
+    F 87:0 asig - B (9)
+    F 23:0 guardar - A (3)
+    F 13:0 cargar - A (2)
+
+8 blocks (classes, functions, methods) analyzed.
+Average complexity: B (9.75)
+## radon mi -s
+m1/main.py - A (26.36)
+## flake8 --max-line-length=100
+m1/main.py:19:5: E722 do not use bare 'except'
+m1/main.py:49:14: E711 comparison to None should be 'if cond is None:'
+m1/main.py:64:10: E711 comparison to None should be 'if cond is None:'
+m1/main.py:95:10: E711 comparison to None should be 'if cond is None:'
+m1/main.py:111:14: E711 comparison to None should be 'if cond is not None:'
+m1/main.py:113:14: E711 comparison to None should be 'if cond is not None:'
+m1/main.py:115:14: E711 comparison to None should be 'if cond is not None:'
+m1/main.py:122:22: E711 comparison to None should be 'if cond is not None:'
+m1/main.py:156:22: E711 comparison to None should be 'if cond is None:'
+m1/main.py:177:9: E722 do not use bare 'except'
+m1/main.py:182:9: E722 do not use bare 'except'
